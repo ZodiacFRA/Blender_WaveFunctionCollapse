@@ -3,6 +3,7 @@ import bpy
 import json
 import time
 import random
+import mathutils
 from pprint import pprint
 
 GRID_SIZE = 2
@@ -219,6 +220,7 @@ class Module(object):
             self.links.append(set())
 
         self.load_sprite(data["sprite_name"])
+        self.sprite_path = data["sprite_name"]
 
     def load_sprite(self, sprite_path):
         self.sprite = bpy.data.objects[sprite_path]
