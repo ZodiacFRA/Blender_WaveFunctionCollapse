@@ -126,6 +126,16 @@ class App(object):
         #     return
 
         to_be_updated_neighbors = set()
+        
+        # Up
+        neighbor = Position(cell.x, cell.y, cell.z + 1)
+        if cell.z < GRID_SIZE - 1 and len(self.map[neighbor.x][neighbor.y][neighbor.z]) > 1:
+            to_be_updated_neighbors.update(self.update_neighbor(cell, neighbor, 0))
+
+        # Down
+        neighbor = Position(cell.x, cell.y, cell.z - 1)
+        if cell.z > 0 and len(self.map[neighbor.x][neighbor.y][neighbor.z]) > 1:
+            to_be_updated_neighbors.update(self.update_neighbor(cell, neighbor, 0))
        
 
         # Propagate the collapse to neighbor which had changes
