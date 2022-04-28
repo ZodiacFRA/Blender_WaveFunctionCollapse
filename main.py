@@ -222,6 +222,8 @@ class App(object):
         self.endTime = time.time()
 
     def duplicate_and_place_object(self, object_name, position):
+        if object_name == 'Empty':
+            return
         # the new object is created with the old object's data, which makes it "linked"
         my_new_obj = bpy.data.objects.new(f"{object_name}_{position}", bpy.data.objects[object_name].data)
         # now it's just an object ref and you can move it to an absolute position
@@ -257,7 +259,7 @@ class Module(object):
 
     # def load_sprite(self, sprite_path):
     #     self.sprite = bpy.data.objects[sprite_path]
-    #
+    
     #     if self.rotation != 0:
     #         self.sprite = pygame.transform.rotate(self.sprite, self.rotation)
     #     top = self.neighbors[0]

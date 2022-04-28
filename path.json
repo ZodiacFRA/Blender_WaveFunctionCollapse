@@ -51,5 +51,18 @@
             [0],
             [1]
           ]
+    },
+    {
+        "module_name": "prof",
+        "sprite_name": "prof",
+        "rotations": [0],
+        "neighbors": [
+            [0],
+            [1],
+            [0],
+            [0],
+            [1],
+            [0]
+          ]
     }
 ]
