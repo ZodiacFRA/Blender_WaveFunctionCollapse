@@ -6,9 +6,9 @@ import random
 import mathutils
 from pprint import pprint
 
-X_GRID_SIZE = 1
-Y_GRID_SIZE = 8
-Z_GRID_SIZE = 8
+X_GRID_SIZE = 20
+Y_GRID_SIZE = 20
+Z_GRID_SIZE = 20
 MAX_CONSECUTIVE_OVERRIDES = 20
 
 
@@ -16,12 +16,13 @@ class App(object):
     def __init__(self):
         seed = random.randint(0, 100)
         random.seed(seed)
+        print("Seed:", seed)
         self.deltaTime = 0.0001
         self.endTime = time.time()
 
         self.modules = {}
         self.socket_types_count = 0
-        self.load_modules_data("/home/zodiac/Code/Perso/Trackmania-WFC/path.json")
+        self.load_modules_data("/home/seub/perso/Trackmania-WFC/path.json")
         print(f"{len(self.modules)} modules, {self.socket_types_count + 1} socket types")
 
         # Initialize map
@@ -37,15 +38,16 @@ class App(object):
                 tmpY.append(tmpZ)
             # Add one single plane, x times
             self.map.append(tmpY)
+        
 
         self.last_chosen_module = None
         self.overrides_count = 0
         self.consecutive_overrides_count = 0
         # Perform WFC on the map
         self.waveshift_function_collapse()
+        self.display_map()
         pprint(list(self.modules.values()))
         print(f"{self.overrides_count} overrides")
-        print(seed)
 
 #########################################
 # Utility functions
@@ -65,23 +67,20 @@ class App(object):
 
     def create_links(self):
         # For each module
-        for name, module in self.modules.items():
+        for a_name, a_module in self.modules.items():
             # For each direction
-            for direction, matching_cell_socket_types in enumerate(module.neighbors):
+            for direction, matching_cell_socket_types in enumerate(a_module.neighbors):
                 # For each matching socket type (each direction can have multiple socket types)
-                for matching_cell_socket_type in matching_cell_socket_types:
+                for a_socket_type in matching_cell_socket_types:
                     # Add all matching sockets
                     for b_name, b_module in self.modules.items():
-                        b_socket_type = b_module.neighbors[self.get_opposite_direction(direction)]
-                        if matching_cell_socket_type in b_socket_type:
-                            self.create_link(module, direction, b_module)
+                        b_socket_types = b_module.neighbors[self.get_opposite_direction(direction)]
+                        if a_socket_type in b_socket_types:
+                            self.create_link(a_module, direction, b_module)
 
     def create_link(self, nodeA, direction, nodeB):
         nodeA.create_link(nodeB, direction)
-        # print('-'*20)
-        # print(f"from {nodeA} to {nodeB} / {direction}")
         direction = self.get_opposite_direction(direction)
-        # print(f"from {nodeB} to {nodeA} / {direction}")
         nodeB.create_link(nodeA, direction)
 
     def get_opposite_direction(self, dir): #perhaps here
@@ -111,10 +110,9 @@ class App(object):
 
 
 #########################################
-# WFC functions
+#dum dee dum WFC functions
     def waveshift_function_collapse(self):
         while 1:
-            print("\t----- TOUR -----")
             self.handle_loop()
             # Update the display so we can see the algorithm working in real time
             # Get the next cell to update
@@ -128,17 +126,15 @@ class App(object):
             self.last_chosen_module = module
             module.count += 1
             # Assign cell
-            print(f"\t--- Assigned {module} to {cell}")
             self.map[cell.x][cell.y][cell.z] = {module}
-            self.duplicate_and_place_object(module.sprite_path, cell)
+            # self.duplicate_and_place_object(module.sprite_path, cell)
             # Now propagate to neighbors
-            self.update_possibilities(cell, 2)
+            self.update_possibilities(cell, 20)
 
     def update_possibilities(self, cell, depth):
-        print(f"updating {cell}")
         # End of recursion conditions
-        if depth == 0:
-            return
+        # if depth == 0:
+        #     return
         to_be_updated_neighbors = set()
         # Top
         neighbor = Position(cell.x, cell.y, cell.z + 1)
@@ -147,23 +143,23 @@ class App(object):
         # Bottom
         neighbor = Position(cell.x, cell.y, cell.z - 1)
         if cell.z > 0 and len(self.map[neighbor.x][neighbor.y][neighbor.z]) > 1:
-            to_be_updated_neighbors.update(self.update_neighbor(cell, neighbor, 0))
+            to_be_updated_neighbors.update(self.update_neighbor(cell, neighbor, 3))
         # Front
         neighbor = Position(cell.x, cell.y - 1, cell.z)
         if cell.y > 0 and len(self.map[neighbor.x][neighbor.y][neighbor.z]) > 1:
-            to_be_updated_neighbors.update(self.update_neighbor(cell, neighbor, 0))
+            to_be_updated_neighbors.update(self.update_neighbor(cell, neighbor, 4))
         # Back
         neighbor = Position(cell.x, cell.y + 1, cell.z)
         if cell.y < Y_GRID_SIZE - 1 and len(self.map[neighbor.x][neighbor.y][neighbor.z]) > 1:
-            to_be_updated_neighbors.update(self.update_neighbor(cell, neighbor, 0))
+            to_be_updated_neighbors.update(self.update_neighbor(cell, neighbor, 1))
         # Left
         neighbor = Position(cell.x - 1, cell.y, cell.z)
         if cell.x > 0 and len(self.map[neighbor.x][neighbor.y][neighbor.z]) > 1:
-            to_be_updated_neighbors.update(self.update_neighbor(cell, neighbor, 0))
+            to_be_updated_neighbors.update(self.update_neighbor(cell, neighbor, 5))
         # Right
         neighbor = Position(cell.x + 1, cell.y, cell.z)
         if cell.x < X_GRID_SIZE - 1 and len(self.map[neighbor.x][neighbor.y][neighbor.z]) > 1:
-            to_be_updated_neighbors.update(self.update_neighbor(cell, neighbor, 0))
+            to_be_updated_neighbors.update(self.update_neighbor(cell, neighbor, 2))
 
         # Propagate the collapse to neighbor which had changes
         for neighbor in to_be_updated_neighbors:
@@ -171,21 +167,20 @@ class App(object):
 
     def update_neighbor(self, cell, neighbor, direction):
         out = set()
-        cell_possible_sockets = set()
+        a_possible_neighbors = set()
         cell_states = self.map[cell.x][cell.y][cell.z]
         # For each possible module of the cell
         for cell_state in cell_states:
             # Add the possibilities based on this direction
-            for socket_type in cell_state.links[direction]:
-                cell_possible_sockets.add(socket_type)
+            for possible_neighbor in cell_state.links[direction]:
+                a_possible_neighbors.add(possible_neighbor)
         ########
         # Remove impossible modules
         tmp = set()
         # For each possible module in the neighbor, remove impossible modules
-        for neighbor_states in self.map[neighbor.x][neighbor.y][neighbor.z]:
-            for socket_type in neighbor_states.links[self.get_opposite_direction(direction)]:
-                if socket_type in cell_possible_sockets:
-                    tmp.add(neighbor_states)
+        for neighbor_state in self.map[neighbor.x][neighbor.y][neighbor.z]:
+            if neighbor_state in a_possible_neighbors:
+                    tmp.add(neighbor_state)
         # Add the neighbor to the to-be-updated neighbors list if a change has been made
         if set(self.map[neighbor.x][neighbor.y][neighbor.z]) != tmp:
             self.map[neighbor.x][neighbor.y][neighbor.z] = tmp
@@ -213,7 +208,6 @@ class App(object):
                     elif len(self.map[x][y][z]) == minimal_entropy:
                         minimal_entropy_cells.append(Position(x, y, z))
 
-        print(f"{tmp_count} aldready collapsed")
         if len(minimal_entropy_cells) > 0:
             # Choose a random minimum entropy cell
             return random.choice(minimal_entropy_cells)
@@ -234,6 +228,17 @@ class App(object):
         my_new_obj.location = (position.x * 2, position.y * 2, position.z * 2)
         # when you create a new object manually this way it's not part of any collection, add it to the active collection so you can actually see it in the viewport
         bpy.context.collection.objects.link(my_new_obj)
+    
+    def display_map(self):
+        for x in range(X_GRID_SIZE):
+            for y in range(Y_GRID_SIZE):
+                for z in range(Z_GRID_SIZE):
+                    pos = Position(x,y,z)
+                    states = self.map[x][y][z]
+                    if len(states) == 1:
+                        self.duplicate_and_place_object(states.pop().sprite_path, pos)
+                    else:
+                        print(f"ignored: {pos} due to {len(states)}")
 
 class Module(object):
     def __init__(self, name, data, rotation):
@@ -267,10 +272,18 @@ class Module(object):
     #         self.neighbors = [left, top, right, bottom]
 
     def create_link(self, nodeB, direction):
+        #check if module already added
         self.links[direction].add(nodeB)
 
     def __repr__(self):
-        return f"{self.name} ({self.count})"
+        # return f"{self.name} ({self.count} {self.links})"
+        tmp1 = f"{self.name}\n"
+        for index, possible_modules_for_this_direction in enumerate(self.links):
+            tmp1 += f"\t{index}: "
+            for possible_module in possible_modules_for_this_direction:
+                tmp1 += f"{possible_module.name}, "
+            tmp1 += '\n'
+        return tmp1
 
 
 class Position(object):
@@ -284,7 +297,7 @@ class Position(object):
 
 
 if __name__ == "__main__":
-    print("="*20)
+    print("\n"*200)
     print("="*20)
     print("="*20)
     app = App()

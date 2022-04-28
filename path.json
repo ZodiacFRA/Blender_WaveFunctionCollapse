@@ -14,6 +14,19 @@
           ]
     },
     {
+        "module_name": "hub",
+        "sprite_name": "hub",
+        "rotations": [0],
+        "neighbors": [
+            [1],
+            [1],
+            [1],
+            [1],
+            [1],
+            [1]
+          ]
+    },
+    {
         "module_name": "vert",
         "sprite_name": "vert",
         "rotations": [0],
