@@ -1,7 +1,7 @@
 [
     {
-        "module_name": "empty",
-        "sprite_name": "Empty",
+        "module_name": "Empty",
+        "scene_object_name": "Empty",
         "self_attraction": false,
         "rotations": [0],
         "neighbors": [
@@ -14,8 +14,8 @@
           ]
     },
     {
-        "module_name": "hub",
-        "sprite_name": "hub",
+        "module_name": "Hub",
+        "scene_object_name": "hub",
         "rotations": [0],
         "neighbors": [
             [1],
@@ -27,8 +27,8 @@
           ]
     },
     {
-        "module_name": "vert",
-        "sprite_name": "vert",
+        "module_name": "Line_0_3",
+        "scene_object_name": "line_0_3",
         "rotations": [0],
         "neighbors": [
             [1],
@@ -41,7 +41,7 @@
     },
     {
         "module_name": "hor",
-        "sprite_name": "hor",
+        "scene_object_name": "hor",
         "rotations": [0],
         "neighbors": [
             [0],
@@ -54,7 +54,7 @@
     },
     {
         "module_name": "prof",
-        "sprite_name": "prof",
+        "scene_object_name": "prof",
         "rotations": [0],
         "neighbors": [
             [0],
@@ -62,6 +62,19 @@
             [0],
             [0],
             [1],
+            [0]
+          ]
+    },
+    {
+        "module_name": "Corner_0_1",
+        "scene_object_name": "corner_0_1",
+        "rotations": [0],
+        "neighbors": [
+            [1],
+            [1],
+            [0],
+            [0],
+            [0],
             [0]
           ]
     }

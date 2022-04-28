@@ -6,9 +6,9 @@ import random
 import mathutils
 from pprint import pprint
 
-X_GRID_SIZE = 20
-Y_GRID_SIZE = 20
-Z_GRID_SIZE = 20
+X_GRID_SIZE = 10
+Y_GRID_SIZE = 10
+Z_GRID_SIZE = 10
 MAX_CONSECUTIVE_OVERRIDES = 20
 
 
@@ -22,23 +22,25 @@ class App(object):
 
         self.modules = {}
         self.socket_types_count = 0
-        self.load_modules_data("/home/seub/perso/Trackmania-WFC/path.json")
+        self.load_modules_data("/home/zodiac/Code/Perso/Trackmania-WFC/path.json")
         print(f"{len(self.modules)} modules, {self.socket_types_count + 1} socket types")
 
         # Initialize map
         self.map = []
+        self.cells_modifications_history = {}
         for x in range(X_GRID_SIZE):
             tmpY = []
             for y in range(Y_GRID_SIZE):
                 tmpZ = []
                 for z in range(Z_GRID_SIZE):
                     # Add one single cell, z times
+                    self.cells_modifications_history[Position(x, y, z).__repr__()] = []
                     tmpZ.append(set([m for m in self.modules.values()]))
                 # Add one single line, y times
                 tmpY.append(tmpZ)
             # Add one single plane, x times
             self.map.append(tmpY)
-        
+
 
         self.last_chosen_module = None
         self.overrides_count = 0
@@ -48,6 +50,13 @@ class App(object):
         self.display_map()
         pprint(list(self.modules.values()))
         print(f"{self.overrides_count} overrides")
+
+        with open("/home/zodiac/Code/Perso/Trackmania-WFC/output.txt", 'w') as f:
+            for cell_pos, modifications in self.cells_modifications_history.items():
+                f.write(f"{cell_pos}\n")
+                for modification in modifications:
+                    f.write(f"\t{modification}\n")
+
 
 #########################################
 # Utility functions
@@ -118,7 +127,6 @@ class App(object):
             # Get the next cell to update
             cell = self.get_minimal_entropy_cell()
             if cell is None:
-                print("no cell found")
                 break
             module = self.choose_module_from_possibilities(
                 cell, self.map[cell.x][cell.y][cell.z], "lowest"
@@ -126,8 +134,9 @@ class App(object):
             self.last_chosen_module = module
             module.count += 1
             # Assign cell
+            self.cells_modifications_history[cell.__repr__()].append(f"Assigned {module} from {self.map[cell.x][cell.y][cell.z]} possible modules")
             self.map[cell.x][cell.y][cell.z] = {module}
-            # self.duplicate_and_place_object(module.sprite_path, cell)
+            # self.duplicate_and_place_object(module.scene_object_name, cell)
             # Now propagate to neighbors
             self.update_possibilities(cell, 20)
 
@@ -183,7 +192,9 @@ class App(object):
                     tmp.add(neighbor_state)
         # Add the neighbor to the to-be-updated neighbors list if a change has been made
         if set(self.map[neighbor.x][neighbor.y][neighbor.z]) != tmp:
+            self.cells_modifications_history[neighbor.__repr__()].append(f"Updated to {tmp} from {self.map[neighbor.x][neighbor.y][neighbor.z]}, because of {cell} with modules {cell_states}")
             self.map[neighbor.x][neighbor.y][neighbor.z] = tmp
+
             out.add(neighbor)
         return out
 
@@ -222,7 +233,7 @@ class App(object):
         self.endTime = time.time()
 
     def duplicate_and_place_object(self, object_name, position):
-        if object_name == 'Empty':
+        if not object_name:
             return
         # the new object is created with the old object's data, which makes it "linked"
         my_new_obj = bpy.data.objects.new(f"{object_name}_{position}", bpy.data.objects[object_name].data)
@@ -230,7 +241,7 @@ class App(object):
         my_new_obj.location = (position.x * 2, position.y * 2, position.z * 2)
         # when you create a new object manually this way it's not part of any collection, add it to the active collection so you can actually see it in the viewport
         bpy.context.collection.objects.link(my_new_obj)
-    
+
     def display_map(self):
         for x in range(X_GRID_SIZE):
             for y in range(Y_GRID_SIZE):
@@ -238,7 +249,7 @@ class App(object):
                     pos = Position(x,y,z)
                     states = self.map[x][y][z]
                     if len(states) == 1:
-                        self.duplicate_and_place_object(states.pop().sprite_path, pos)
+                        self.duplicate_and_place_object(states.pop().scene_object_name, pos)
                     else:
                         print(f"ignored: {pos} due to {len(states)}")
 
@@ -255,11 +266,11 @@ class Module(object):
             self.links.append(set())
 
         # self.load_sprite(data["sprite_name"])
-        self.sprite_path = data["sprite_name"]
+        self.scene_object_name = data["scene_object_name"]
 
-    # def load_sprite(self, sprite_path):
-    #     self.sprite = bpy.data.objects[sprite_path]
-    
+    # def load_sprite(self, scene_object_name):
+    #     self.sprite = bpy.data.objects[scene_object_name]
+
     #     if self.rotation != 0:
     #         self.sprite = pygame.transform.rotate(self.sprite, self.rotation)
     #     top = self.neighbors[0]
@@ -278,14 +289,15 @@ class Module(object):
         self.links[direction].add(nodeB)
 
     def __repr__(self):
-        # return f"{self.name} ({self.count} {self.links})"
-        tmp1 = f"{self.name}\n"
-        for index, possible_modules_for_this_direction in enumerate(self.links):
-            tmp1 += f"\t{index}: "
-            for possible_module in possible_modules_for_this_direction:
-                tmp1 += f"{possible_module.name}, "
-            tmp1 += '\n'
-        return tmp1
+        return f"{self.name}"
+        # DEBUG: To display links
+        # tmp1 = f"{self.name}\n"
+        # for index, possible_modules_for_this_direction in enumerate(self.links):
+        #     tmp1 += f"\t{index}: "
+        #     for possible_module in possible_modules_for_this_direction:
+        #         tmp1 += f"{possible_module.name}, "
+        #     tmp1 += '\n'
+        # return tmp1
 
 
 class Position(object):
@@ -295,7 +307,7 @@ class Position(object):
         self.z = z
 
     def __repr__(self):
-        return f"x:{self.x} y:{self.y} z:{self.z}"
+        return f"{self.x}/{self.y}/{self.z}"
 
 
 if __name__ == "__main__":
