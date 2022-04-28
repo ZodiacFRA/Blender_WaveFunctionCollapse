@@ -14,15 +14,28 @@
           ]
     },
     {
-        "module_name": "square",
-        "sprite_name": "Cube",
+        "module_name": "vert",
+        "sprite_name": "vert",
         "rotations": [0],
         "neighbors": [
             [1],
+            [0],
+            [0],
             [1],
+            [0],
+            [0]
+          ]
+    },
+    {
+        "module_name": "hor",
+        "sprite_name": "hor",
+        "rotations": [0],
+        "neighbors": [
+            [0],
+            [0],
             [1],
-            [1],
-            [1],
+            [0],
+            [0],
             [1]
           ]
     }

@@ -6,30 +6,38 @@ import random
 import mathutils
 from pprint import pprint
 
-GRID_SIZE = 2
+X_GRID_SIZE = 1
+Y_GRID_SIZE = 8
+Z_GRID_SIZE = 8
 MAX_CONSECUTIVE_OVERRIDES = 20
 
 
 class App(object):
     def __init__(self):
-        random.seed(42)
-        self.deltaTime = 0.01
+        seed = random.randint(0, 100)
+        random.seed(seed)
+        self.deltaTime = 0.0001
         self.endTime = time.time()
 
         self.modules = {}
         self.socket_types_count = 0
-        self.load_modules_data("/home/seub/perso/Trackmania-WFC/path.json")
+        self.load_modules_data("/home/zodiac/Code/Perso/Trackmania-WFC/path.json")
         print(f"{len(self.modules)} modules, {self.socket_types_count + 1} socket types")
 
         # Initialize map
         self.map = []
-        for x in range(GRID_SIZE):
-            self.map.append([] * GRID_SIZE)
-            for y in range(GRID_SIZE):
-                self.map[x].append([set([m for m in self.modules.values()])] *
-                                GRID_SIZE)
+        for x in range(X_GRID_SIZE):
+            tmpY = []
+            for y in range(Y_GRID_SIZE):
+                tmpZ = []
+                for z in range(Z_GRID_SIZE):
+                    # Add one single cell, z times
+                    tmpZ.append(set([m for m in self.modules.values()]))
+                # Add one single line, y times
+                tmpY.append(tmpZ)
+            # Add one single plane, x times
+            self.map.append(tmpY)
 
-        pprint(self.map)
         self.last_chosen_module = None
         self.overrides_count = 0
         self.consecutive_overrides_count = 0
@@ -37,6 +45,7 @@ class App(object):
         self.waveshift_function_collapse()
         pprint(list(self.modules.values()))
         print(f"{self.overrides_count} overrides")
+        print(seed)
 
 #########################################
 # Utility functions
@@ -81,7 +90,7 @@ class App(object):
     def choose_module_from_possibilities(self, cell, possible_modules, type="lowest"):
         if type == "lowest":
             res = []
-            lowest = GRID_SIZE * GRID_SIZE
+            lowest = X_GRID_SIZE * Y_GRID_SIZE * Z_GRID_SIZE
             for module in possible_modules:
                 if module.count < lowest:
                     lowest = module.count
@@ -105,39 +114,56 @@ class App(object):
 # WFC functions
     def waveshift_function_collapse(self):
         while 1:
-            print("in")
+            print("\t----- TOUR -----")
             self.handle_loop()
             # Update the display so we can see the algorithm working in real time
             # Get the next cell to update
             cell = self.get_minimal_entropy_cell()
             if cell is None:
+                print("no cell found")
                 break
-            module = self.choose_module_from_possibilities(cell, self.map[cell.x][cell.y][cell.z], "lowest")
+            module = self.choose_module_from_possibilities(
+                cell, self.map[cell.x][cell.y][cell.z], "lowest"
+            )
             self.last_chosen_module = module
             module.count += 1
+            # Assign cell
+            print(f"\t--- Assigned {module} to {cell}")
             self.map[cell.x][cell.y][cell.z] = {module}
+            self.duplicate_and_place_object(module.sprite_path, cell)
             # Now propagate to neighbors
-            self.update_possibilities(cell, 20)
-            self.display_map()
-
+            self.update_possibilities(cell, 2)
 
     def update_possibilities(self, cell, depth):
+        print(f"updating {cell}")
         # End of recursion conditions
-        # if depth == 0:
-        #     return
-
+        if depth == 0:
+            return
         to_be_updated_neighbors = set()
-        
-        # Up
+        # Top
         neighbor = Position(cell.x, cell.y, cell.z + 1)
-        if cell.z < GRID_SIZE - 1 and len(self.map[neighbor.x][neighbor.y][neighbor.z]) > 1:
+        if cell.z < Z_GRID_SIZE - 1 and len(self.map[neighbor.x][neighbor.y][neighbor.z]) > 1:
             to_be_updated_neighbors.update(self.update_neighbor(cell, neighbor, 0))
-
-        # Down
+        # Bottom
         neighbor = Position(cell.x, cell.y, cell.z - 1)
         if cell.z > 0 and len(self.map[neighbor.x][neighbor.y][neighbor.z]) > 1:
             to_be_updated_neighbors.update(self.update_neighbor(cell, neighbor, 0))
-       
+        # Front
+        neighbor = Position(cell.x, cell.y - 1, cell.z)
+        if cell.y > 0 and len(self.map[neighbor.x][neighbor.y][neighbor.z]) > 1:
+            to_be_updated_neighbors.update(self.update_neighbor(cell, neighbor, 0))
+        # Back
+        neighbor = Position(cell.x, cell.y + 1, cell.z)
+        if cell.y < Y_GRID_SIZE - 1 and len(self.map[neighbor.x][neighbor.y][neighbor.z]) > 1:
+            to_be_updated_neighbors.update(self.update_neighbor(cell, neighbor, 0))
+        # Left
+        neighbor = Position(cell.x - 1, cell.y, cell.z)
+        if cell.x > 0 and len(self.map[neighbor.x][neighbor.y][neighbor.z]) > 1:
+            to_be_updated_neighbors.update(self.update_neighbor(cell, neighbor, 0))
+        # Right
+        neighbor = Position(cell.x + 1, cell.y, cell.z)
+        if cell.x < X_GRID_SIZE - 1 and len(self.map[neighbor.x][neighbor.y][neighbor.z]) > 1:
+            to_be_updated_neighbors.update(self.update_neighbor(cell, neighbor, 0))
 
         # Propagate the collapse to neighbor which had changes
         for neighbor in to_be_updated_neighbors:
@@ -145,19 +171,21 @@ class App(object):
 
     def update_neighbor(self, cell, neighbor, direction):
         out = set()
-        possible_modules = set()
-        cell_modules = self.map[cell.x][cell.y][cell.z]
+        cell_possible_sockets = set()
+        cell_states = self.map[cell.x][cell.y][cell.z]
         # For each possible module of the cell
-        for cell_module in cell_modules:
+        for cell_state in cell_states:
             # Add the possibilities based on this direction
-            for module in cell_module.links[direction]:
-                possible_modules.add(module)
-        # Remove impossible modules in the upper neighbor
+            for socket_type in cell_state.links[direction]:
+                cell_possible_sockets.add(socket_type)
+        ########
+        # Remove impossible modules
         tmp = set()
         # For each possible module in the neighbor, remove impossible modules
-        for neighbor_possible_module in self.map[neighbor.x][neighbor.y][neighbor.z]:
-            if neighbor_possible_module in possible_modules:
-                tmp.add(neighbor_possible_module)
+        for neighbor_states in self.map[neighbor.x][neighbor.y][neighbor.z]:
+            for socket_type in neighbor_states.links[self.get_opposite_direction(direction)]:
+                if socket_type in cell_possible_sockets:
+                    tmp.add(neighbor_states)
         # Add the neighbor to the to-be-updated neighbors list if a change has been made
         if set(self.map[neighbor.x][neighbor.y][neighbor.z]) != tmp:
             self.map[neighbor.x][neighbor.y][neighbor.z] = tmp
@@ -169,11 +197,13 @@ class App(object):
         have the same entropy, choose one at random """
         minimal_entropy = len(self.modules)
         minimal_entropy_cells = []
-        for z in range(GRID_SIZE):
-            for y in range(GRID_SIZE):
-                for x in range(GRID_SIZE):
+        tmp_count = 0
+        for x in range(X_GRID_SIZE):
+            for y in range(Y_GRID_SIZE):
+                for z in range(Z_GRID_SIZE):
                     # Ignore already finished cells
                     if len(self.map[x][y][z]) < 2:
+                        tmp_count += 1
                         continue
                     # Lower entropy found
                     elif len(self.map[x][y][z]) < minimal_entropy:
@@ -182,30 +212,28 @@ class App(object):
                     # Add to the list of lowest entropy cells
                     elif len(self.map[x][y][z]) == minimal_entropy:
                         minimal_entropy_cells.append(Position(x, y, z))
+
+        print(f"{tmp_count} aldready collapsed")
         if len(minimal_entropy_cells) > 0:
             # Choose a random minimum entropy cell
             return random.choice(minimal_entropy_cells)
         return None
 
 #########################################
-# Display functions
-    def display_map(self):
-        for x in range(GRID_SIZE):
-            for y in range(GRID_SIZE):
-                for z in range(GRID_SIZE):
-                    if len(self.map[x][y][z]) == 1:
-                        module = list(self.map[x][y][z])[0]
-                        bpy.data.objects[module.sprite_path].select_set(True)
-                        new_obj = bpy.context.active_object.copy()
-                        new_obj.location = new_obj.location + mathutils.Vector((x,y,z))
-                        # self.display.blit(module.sprite, (x*TILE_SIZE, y*TILE_SIZE))
-
+# Blender functions
     def handle_loop(self):
         delta = time.time() - self.endTime
         if delta < self.deltaTime:
             time.sleep(self.deltaTime - delta)
         self.endTime = time.time()
 
+    def duplicate_and_place_object(self, object_name, position):
+        # the new object is created with the old object's data, which makes it "linked"
+        my_new_obj = bpy.data.objects.new(f"{object_name}_{position}", bpy.data.objects[object_name].data)
+        # now it's just an object ref and you can move it to an absolute position
+        my_new_obj.location = (position.x * 2, position.y * 2, position.z * 2)
+        # when you create a new object manually this way it's not part of any collection, add it to the active collection so you can actually see it in the viewport
+        bpy.context.collection.objects.link(my_new_obj)
 
 class Module(object):
     def __init__(self, name, data, rotation):
@@ -219,36 +247,30 @@ class Module(object):
         for i in range(6):
             self.links.append(set())
 
-        self.load_sprite(data["sprite_name"])
+        # self.load_sprite(data["sprite_name"])
         self.sprite_path = data["sprite_name"]
 
-    def load_sprite(self, sprite_path):
-        self.sprite = bpy.data.objects[sprite_path]
-        # self.sprite = pygame.image.load(
-        #     f"""./assets/{sprite_path}""")
-        # # Transform it to a pygame friendly format (quicker drawing)
-        # self.sprite.convert()
-        # self.sprite = pygame.transform.scale(self.sprite,
-        #                                     (tile_size, tile_size))
-        # ALL PYGAME ROTATIONS ARE COUNTERCLOCKWISE
-        # if self.rotation != 0:
-        #     self.sprite = pygame.transform.rotate(self.sprite, self.rotation)
-        # top = self.neighbors[0]
-        # right = self.neighbors[1]
-        # bottom = self.neighbors[2]
-        # left = self.neighbors[3]
-        # if self.rotation == 90:
-        #     self.neighbors = [right, bottom, left, top]
-        # elif self.rotation == 180:
-        #     self.neighbors = [bottom, left, top, right]
-        # elif self.rotation == 270:
-        #     self.neighbors = [left, top, right, bottom]
+    # def load_sprite(self, sprite_path):
+    #     self.sprite = bpy.data.objects[sprite_path]
+    #
+    #     if self.rotation != 0:
+    #         self.sprite = pygame.transform.rotate(self.sprite, self.rotation)
+    #     top = self.neighbors[0]
+    #     right = self.neighbors[1]
+    #     bottom = self.neighbors[2]
+    #     left = self.neighbors[3]
+    #     if self.rotation == 90:
+    #         self.neighbors = [right, bottom, left, top]
+    #     elif self.rotation == 180:
+    #         self.neighbors = [bottom, left, top, right]
+    #     elif self.rotation == 270:
+    #         self.neighbors = [left, top, right, bottom]
 
     def create_link(self, nodeB, direction):
         self.links[direction].add(nodeB)
 
     def __repr__(self):
-        return f"{self.name:<20} {self.count}"
+        return f"{self.name} ({self.count})"
 
 
 class Position(object):
@@ -262,5 +284,7 @@ class Position(object):
 
 
 if __name__ == "__main__":
+    print("="*20)
+    print("="*20)
     print("="*20)
     app = App()
