@@ -4,7 +4,7 @@
         "scene_object_name": "Empty",
         "self_attraction": false,
         "rotations": [0],
-        "neighbors": [
+        "sockets": [
             [0],
             [0],
             [0],
@@ -14,10 +14,10 @@
           ]
     },
     {
-        "module_name": "Hub",
+        "module_name": "hub",
         "scene_object_name": "hub",
         "rotations": [0],
-        "neighbors": [
+        "sockets": [
             [1],
             [1],
             [1],
@@ -27,10 +27,10 @@
           ]
     },
     {
-        "module_name": "Line_0_3",
+        "module_name": "line_0_3",
         "scene_object_name": "line_0_3",
-        "rotations": [0],
-        "neighbors": [
+        "rotations": [-1],
+        "sockets": [
             [1],
             [0],
             [0],
@@ -40,36 +40,10 @@
           ]
     },
     {
-        "module_name": "hor",
-        "scene_object_name": "hor",
-        "rotations": [0],
-        "neighbors": [
-            [0],
-            [0],
-            [1],
-            [0],
-            [0],
-            [1]
-          ]
-    },
-    {
-        "module_name": "prof",
-        "scene_object_name": "prof",
-        "rotations": [0],
-        "neighbors": [
-            [0],
-            [1],
-            [0],
-            [0],
-            [1],
-            [0]
-          ]
-    },
-    {
-        "module_name": "Corner_0_1",
+        "module_name": "corner_0_1",
         "scene_object_name": "corner_0_1",
-        "rotations": [0],
-        "neighbors": [
+        "rotations": [-1],
+        "sockets": [
             [1],
             [1],
             [0],

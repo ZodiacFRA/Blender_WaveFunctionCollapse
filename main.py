@@ -1,14 +1,14 @@
-import sys
 import bpy
 import json
 import time
+import math
 import random
-import mathutils
 from pprint import pprint
+from mathutils import Matrix
 
-X_GRID_SIZE = 10
-Y_GRID_SIZE = 10
-Z_GRID_SIZE = 10
+X_GRID_SIZE = 8
+Y_GRID_SIZE = 8
+Z_GRID_SIZE = 8
 MAX_CONSECUTIVE_OVERRIDES = 20
 
 JSON_MODULES_DATA_PATH = "/home/zodiac/Code/Perso/Trackmania-WFC/path.json"
@@ -25,6 +25,15 @@ class App(object):
         self.deltaTime = 0.0001
         self.endTime = time.time()
 
+        self.handle_modules_creation()
+        self.handle_map_creation()
+        # Creates a collection in which all created blocks will go
+        create_blender_collection("Output")
+        # Perform WFC on the map
+        self.waveshift_function_collapse()
+        self.log()
+
+    def handle_modules_creation(self):
         # Creates a "Generated modules" collection where all the rotations
         # of all the modules (including 0, which does not actually rotates the object)
         # will go during modules data loading
@@ -33,13 +42,18 @@ class App(object):
         self.modules = {}
         self.socket_types_count = 0
         self.load_modules_data(JSON_MODULES_DATA_PATH)
+        self.create_links()
         print(f"{len(self.modules)} modules, {self.socket_types_count + 1} socket types")
+        vlayer = bpy.context.scene.view_layers['View Layer']
+        vlayer.layer_collection.children['Generated modules'].hide_viewport = True
+
         # Modules data recording
         self.last_chosen_module = None
         self.overrides_count = 0
         self.consecutive_overrides_count = 0
         self.impossible_positions_count = 0
 
+    def handle_map_creation(self):
         # Initialize map
         self.map = []
         self.cells_modifications_history = {}
@@ -49,23 +63,19 @@ class App(object):
                 tmpZ = []
                 for z in range(Z_GRID_SIZE):
                     # Add one single cell, z times
-                    self.cells_modifications_history[Position(x, y, z).__repr__()] = []
+                    self.cells_modifications_history[Vector3(x, y, z).__repr__()] = []
                     tmpZ.append(set([m for m in self.modules.values()]))
                 # Add one single line, y times
                 tmpY.append(tmpZ)
             # Add one single plane, x times
             self.map.append(tmpY)
 
-        # Creates a collection in which all created blocks will go
-        create_blender_collection("Output")
-        # Perform WFC on the map
-        self.waveshift_function_collapse()
-
+    def log(self):
         # Logging
         self.display_map()
         pprint(list(self.modules.values()))
         print(f"{self.overrides_count} overrides")
-        print(f"{self.impossible_positions_count}/{X_GRID_SIZE * Y_GRID_SIZE * Z_GRID_SIZE} impossible positions")
+        print(f"{(self.impossible_positions_count/(X_GRID_SIZE * Y_GRID_SIZE * Z_GRID_SIZE) * 100):.2f}% ({self.impossible_positions_count}/{X_GRID_SIZE * Y_GRID_SIZE * Z_GRID_SIZE}) impossible positions")
         # Write cell modifications history to a text file
         with open(CELLS_MODIFICATIONS_HISTORY_PATH, 'w') as f:
             for cell_pos, modifications in self.cells_modifications_history.items():
@@ -79,27 +89,36 @@ class App(object):
     def load_modules_data(self, filepath):
         with open(filepath, "r") as f:
             modules_data = json.load(f)
+
+        x_pos = 0
         # Create all modules
         for module in modules_data:
-            for directions in module["neighbors"]:
+            # Only needed to get total socket_types_count
+            for directions in module["sockets"]:
                 for socket_type in directions:
                     if socket_type > self.socket_types_count:
                         self.socket_types_count = socket_type
+            y_pos = 0
+            # Create all the rotated meshes
+            if module["rotations"][0] == -1:
+                module["rotations"] = [idx for idx in range(23)]
             for rotation in module["rotations"]:
                 name = f"""{module["module_name"]}_{rotation}"""
-                self.modules[name] = Module(name, module, rotation)
-        self.create_links()
+                self.modules[name] = Module(name, module, rotation, Vector3(x_pos, y_pos, 0))
+                y_pos += 1
+
+            x_pos += 1
 
     def create_links(self):
         # For each module
         for a_name, a_module in self.modules.items():
             # For each direction
-            for direction, matching_cell_socket_types in enumerate(a_module.neighbors):
+            for direction, matching_cell_socket_types in enumerate(a_module.sockets):
                 # For each matching socket type (each direction can have multiple socket types)
                 for a_socket_type in matching_cell_socket_types:
                     # Add all matching sockets
                     for b_name, b_module in self.modules.items():
-                        b_socket_types = b_module.neighbors[self.get_opposite_direction(direction)]
+                        b_socket_types = b_module.sockets[self.get_opposite_direction(direction)]
                         if a_socket_type in b_socket_types:
                             self.create_link(a_module, direction, b_module)
 
@@ -138,8 +157,6 @@ class App(object):
 # WFC algorithm functions
     def waveshift_function_collapse(self):
         while 1:
-            self.handle_loop()
-            # Update the display so we can see the algorithm working in real time
             # Get the next cell to update
             cell = self.get_minimal_entropy_cell()
             if cell is None:
@@ -152,7 +169,7 @@ class App(object):
             # Assign cell
             self.cells_modifications_history[cell.__repr__()].append(f"Assigned {module} from {self.map[cell.x][cell.y][cell.z]} possible modules")
             self.map[cell.x][cell.y][cell.z] = {module}
-            # duplicate_and_place_object(module.scene_object_name, cell)
+            # duplicate_and_place_object(module.name, cell)
             # Now propagate to neighbors
             self.update_possibilities(cell, 20)
 
@@ -162,27 +179,27 @@ class App(object):
         #     return
         to_be_updated_neighbors = set()
         # Top
-        neighbor = Position(cell.x, cell.y, cell.z + 1)
+        neighbor = Vector3(cell.x, cell.y, cell.z + 1)
         if cell.z < Z_GRID_SIZE - 1 and len(self.map[neighbor.x][neighbor.y][neighbor.z]) > 1:
             to_be_updated_neighbors.update(self.update_neighbor(cell, neighbor, 0))
         # Bottom
-        neighbor = Position(cell.x, cell.y, cell.z - 1)
+        neighbor = Vector3(cell.x, cell.y, cell.z - 1)
         if cell.z > 0 and len(self.map[neighbor.x][neighbor.y][neighbor.z]) > 1:
             to_be_updated_neighbors.update(self.update_neighbor(cell, neighbor, 3))
         # Front
-        neighbor = Position(cell.x, cell.y - 1, cell.z)
+        neighbor = Vector3(cell.x, cell.y - 1, cell.z)
         if cell.y > 0 and len(self.map[neighbor.x][neighbor.y][neighbor.z]) > 1:
             to_be_updated_neighbors.update(self.update_neighbor(cell, neighbor, 4))
         # Back
-        neighbor = Position(cell.x, cell.y + 1, cell.z)
+        neighbor = Vector3(cell.x, cell.y + 1, cell.z)
         if cell.y < Y_GRID_SIZE - 1 and len(self.map[neighbor.x][neighbor.y][neighbor.z]) > 1:
             to_be_updated_neighbors.update(self.update_neighbor(cell, neighbor, 1))
         # Left
-        neighbor = Position(cell.x - 1, cell.y, cell.z)
+        neighbor = Vector3(cell.x - 1, cell.y, cell.z)
         if cell.x > 0 and len(self.map[neighbor.x][neighbor.y][neighbor.z]) > 1:
             to_be_updated_neighbors.update(self.update_neighbor(cell, neighbor, 5))
         # Right
-        neighbor = Position(cell.x + 1, cell.y, cell.z)
+        neighbor = Vector3(cell.x + 1, cell.y, cell.z)
         if cell.x < X_GRID_SIZE - 1 and len(self.map[neighbor.x][neighbor.y][neighbor.z]) > 1:
             to_be_updated_neighbors.update(self.update_neighbor(cell, neighbor, 2))
 
@@ -230,10 +247,10 @@ class App(object):
                     # Lower entropy found
                     elif len(self.map[x][y][z]) < minimal_entropy:
                         minimal_entropy = len(self.map[x][y][z])
-                        minimal_entropy_cells = [Position(x, y, z)]
+                        minimal_entropy_cells = [Vector3(x, y, z)]
                     # Add to the list of lowest entropy cells
                     elif len(self.map[x][y][z]) == minimal_entropy:
-                        minimal_entropy_cells.append(Position(x, y, z))
+                        minimal_entropy_cells.append(Vector3(x, y, z))
 
         if len(minimal_entropy_cells) > 0:
             # Choose a random minimum entropy cell
@@ -242,33 +259,27 @@ class App(object):
 
 #########################################
 # Blender functions
-    def handle_loop(self):
-        delta = time.time() - self.endTime
-        if delta < self.deltaTime:
-            time.sleep(self.deltaTime - delta)
-        self.endTime = time.time()
-
     def display_map(self):
         for x in range(X_GRID_SIZE):
             for y in range(Y_GRID_SIZE):
                 for z in range(Z_GRID_SIZE):
-                    pos = Position(x,y,z)
+                    pos = Vector3(x,y,z)
                     states = self.map[x][y][z]
                     states_count = len(states)
                     if states_count == 1:
-                        duplicate_and_place_object(states.pop().scene_object_name, pos)
+                        duplicate_and_place_object(states.pop().name, pos)
                     elif states_count == 0:
                         self.impossible_positions_count += 1
                     elif states_count > 1:
-                        print(f"ignored: {pos} due to multiple states still in place: {states}")
+                        print(f"ignored: {pos} due to cell not collapsed (states: {states})")
 
-########################
 ## Non part of the class
 def clean_blender_scene():
     """
     - The scene is supposed to have a "Modules" collection, which will be left
     untouched
     - All other collections will be deleted
+    - Purge orphan data
     """
     for collection in bpy.data.collections:
         if collection.name != "Modules":
@@ -276,6 +287,23 @@ def clean_blender_scene():
             for obj in collection.objects:
                 bpy.data.objects.remove(obj, do_unlink=True)
             bpy.data.collections.remove(collection)
+    # Purge orphan data
+    for block in bpy.data.objects:
+        if block.users == 0:
+            bpy.data.objects.remove(block)
+    for block in bpy.data.meshes:
+        if block.users == 0:
+            bpy.data.meshes.remove(block)
+    for block in bpy.data.materials:
+        if block.users == 0:
+            bpy.data.materials.remove(block)
+    for block in bpy.data.textures:
+        if block.users == 0:
+            bpy.data.textures.remove(block)
+    for block in bpy.data.images:
+        if block.users == 0:
+            bpy.data.images.remove(block)
+
 
 def create_blender_collection(collection_name):
     collection = bpy.data.collections.new(collection_name)
@@ -293,45 +321,122 @@ def duplicate_and_place_object(object_name, position):
     bpy.data.collections['Output'].objects.link(new_obj)
 
 
+def blender_rotate(ob, rotation):
+    ob.rotation_euler[0] = math.radians(rotation.x)
+    ob.rotation_euler[1] = math.radians(rotation.y)
+    ob.rotation_euler[2] = math.radians(rotation.z)
+    bpy.data.objects[ob.name].select_set(True)
+    bpy.ops.object.transform_apply(rotation=True)
+    bpy.data.objects[ob.name].select_set(False)
+
+ROTATIONS = [
+"",
+"X",
+"Y",
+"XX",
+"XY",
+"YX",
+"YY",
+"XXX",
+"XXY",
+"XYX",
+"XYY",
+"YXX",
+"YYX",
+"YYY",
+"XXXY",
+"XXYX",
+"XXYY",
+"XYXX",
+"XYYY",
+"YXXX",
+"YYYX",
+"XXXYX",
+"XYXXX",
+"XYYYX"
+]
+
 class Module(object):
-    def __init__(self, name, data, rotation):
+    def __init__(self, name, data, rotation, mesh_position):
         self.count = 0
         self.name = name
         self.rotation = rotation
         self.self_attraction = data.get("self_attraction", 1)
 
-        self.neighbors = data["neighbors"]
+        self.sockets = data["sockets"].copy()
         self.links = []
         for i in range(6):
             self.links.append(set())
 
-        # self.load_sprite(data["sprite_name"])
-        self.scene_object_name = data["scene_object_name"]
+        self.original_scene_object_name = data["scene_object_name"]
+        self.create_transformed_object(rotation, mesh_position)
 
-    # def load_sprite(self, scene_object_name):
-    #     self.sprite = bpy.data.objects[scene_object_name]
+    def create_transformed_object(self, rotation, mesh_position):
+        """ Mesh position is only needed to neatly present all the generated meshes
+        it has no impact on anything else """
+        # The name already contains the original object name + the rotation idx
+        # Duplicate the object AND its data
+        # - We don't want the underlying mesh to be the same, otherwise the
+        # rotations won't work
+        if bpy.data.objects[self.original_scene_object_name].data is not None:
+            new_obj = bpy.data.objects.new(
+                f"{self.name}",
+                bpy.data.objects[self.original_scene_object_name].data.copy()
+            )
+        else:  # Needed for empty objects
+            new_obj = bpy.data.objects.new(
+                f"{self.name}",
+                bpy.data.objects[self.original_scene_object_name].data
+            )
+        # Link to collection
+        bpy.data.collections['Generated modules'].objects.link(new_obj)
+        # Rotate
+        x_rotation = Vector3(90, 0, 0)
+        y_rotation = Vector3(0, 90, 0)
 
-    #     if self.rotation != 0:
-    #         self.sprite = pygame.transform.rotate(self.sprite, self.rotation)
-    #     top = self.neighbors[0]
-    #     right = self.neighbors[1]
-    #     bottom = self.neighbors[2]
-    #     left = self.neighbors[3]
-    #     if self.rotation == 90:
-    #         self.neighbors = [right, bottom, left, top]
-    #     elif self.rotation == 180:
-    #         self.neighbors = [bottom, left, top, right]
-    #     elif self.rotation == 270:
-    #         self.neighbors = [left, top, right, bottom]
+        rotations_order = ROTATIONS[rotation]
+        # Apply each single transformation individually
+        # And swap the sockets to their new direction
+        for rotation_axis in rotations_order:
+            if rotation_axis == "X":
+                blender_rotate(new_obj, x_rotation)
+                self.rotate_sockets(rotation_axis)
+            elif rotation_axis == "Y":
+                blender_rotate(new_obj, y_rotation)
+                self.rotate_sockets(rotation_axis)
+            else:
+                print("UNKNOWN ROTATION:", rotation_axis)
+
+        # Translate
+        new_obj.location = (mesh_position.x * 4, mesh_position.y * 4, mesh_position.z * 4)
+
+    def rotate_sockets(self, rotation_axis):
+        i0 = self.sockets[0]
+        i1 = self.sockets[1]
+        i2 = self.sockets[2]
+        i3 = self.sockets[3]
+        i4 = self.sockets[4]
+        i5 = self.sockets[5]
+        if rotation_axis == "X":
+            self.sockets[0] = i1
+            self.sockets[1] = i3
+            self.sockets[3] = i4
+            self.sockets[4] = i0
+        elif rotation_axis == "Y":
+            self.sockets[0] = i5
+            self.sockets[2] = i0
+            self.sockets[3] = i2
+            self.sockets[5] = i3
 
     def create_link(self, nodeB, direction):
-        #check if module already added
         self.links[direction].add(nodeB)
 
     def __repr__(self):
-        return f"{self.name}"
+        return f"{self.name:<25}{self.count}"
+
         # DEBUG: To display links
-        # tmp1 = f"{self.name}\n"
+
+        # tmp1 = f"\n{'-'*10} - {self.name}\n"
         # for index, possible_modules_for_this_direction in enumerate(self.links):
         #     tmp1 += f"\t{index}: "
         #     for possible_module in possible_modules_for_this_direction:
@@ -339,8 +444,18 @@ class Module(object):
         #     tmp1 += '\n'
         # return tmp1
 
+        # DEBUG: To display sockets
 
-class Position(object):
+        # tmp1 = f"\n{'-'*2} - {self.name}\n"
+        # for index, sockets in enumerate(self.sockets):
+        #     tmp1 += f"\t{index}: "
+        #     for socket in sockets:
+        #         tmp1 += f"{socket}, "
+        #     tmp1 += '\n'
+        # return tmp1
+
+
+class Vector3(object):
     def __init__(self, x, y, z):
         self.x = x
         self.y = y
