@@ -40,6 +40,19 @@
           ]
     },
     {
+        "module_name": "line_deco_0_3",
+        "scene_object_name": "line_deco_0_3",
+        "rotations": [-1],
+        "sockets": [
+            [1],
+            [0],
+            [0],
+            [1],
+            [0],
+            [0]
+          ]
+    },
+    {
         "module_name": "corner_0_1",
         "scene_object_name": "corner_0_1",
         "rotations": [-1],

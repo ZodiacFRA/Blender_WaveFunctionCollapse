@@ -1,19 +1,21 @@
 import bpy
 import json
-import time
 import math
 import random
 from pprint import pprint
-from mathutils import Matrix
 
-X_GRID_SIZE = 8
-Y_GRID_SIZE = 8
-Z_GRID_SIZE = 8
+X_GRID_SIZE = 10
+Y_GRID_SIZE = 10
+Z_GRID_SIZE = 2
 MAX_CONSECUTIVE_OVERRIDES = 20
 
 JSON_MODULES_DATA_PATH = "/home/zodiac/Code/Perso/Trackmania-WFC/path.json"
 CELLS_MODIFICATIONS_HISTORY_PATH = "/home/zodiac/Code/Perso/Trackmania-WFC/output.txt"
-
+ROTATIONS = [
+"", "X", "Y", "XX", "XY", "YX", "YY", "XXX", "XXY", "XYX", "XYY", "YXX",
+"YYX", "YYY", "XXXY", "XXYX", "XXYY", "XYXX", "XYYY", "YXXX", "YYYX",
+"XXXYX", "XYXXX", "XYYYX"
+]
 
 class App(object):
     def __init__(self):
@@ -22,8 +24,6 @@ class App(object):
         seed = random.randint(0, 100)
         random.seed(seed)
         print("Seed:", seed)
-        self.deltaTime = 0.0001
-        self.endTime = time.time()
 
         self.handle_modules_creation()
         self.handle_map_creation()
@@ -316,6 +316,8 @@ def create_blender_collection(collection_name):
 
 
 def duplicate_and_place_object(object_name, position):
+    """ This function duplicates an object (but the underlying is kept the same)
+    so the two objects are linked, then positions the newly created object """
     if not object_name:
         return
     # the new object is created with the old object's data, which makes it "linked"
@@ -334,11 +336,6 @@ def blender_rotate(ob, rotation):
     bpy.ops.object.transform_apply(rotation=True)
     bpy.data.objects[ob.name].select_set(False)
 
-ROTATIONS = [
-"", "X", "Y", "XX", "XY", "YX", "YY", "XXX", "XXY", "XYX", "XYY", "YXX",
-"YYX", "YYY", "XXXY", "XXYX", "XXYY", "XYXX", "XYYY", "YXXX", "YYYX",
-"XXXYX", "XYXXX", "XYYYX"
-]
 
 class Module(object):
     def __init__(self, name, data, rotation, mesh_position):
