@@ -21,9 +21,8 @@ class App(object):
     def __init__(self):
         clean_blender_scene()
         # Constants
-        seed = random.randint(0, 100)
-        random.seed(seed)
-        print("Seed:", seed)
+        self.seed = random.randint(0, 100)
+        random.seed(self.seed)
 
         self.handle_modules_creation()
         self.handle_map_creation()
@@ -43,7 +42,6 @@ class App(object):
         self.socket_types_count = 0
         self.load_modules_data(JSON_MODULES_DATA_PATH)
         self.create_links()
-        print(f"{len(self.modules)} modules, {self.socket_types_count + 1} socket types")
         vlayer = bpy.context.scene.view_layers['View Layer']
         vlayer.layer_collection.children['Generated modules'].hide_viewport = True
 
@@ -76,9 +74,13 @@ class App(object):
 
     def log(self):
         # Logging
-        self.display_map()
-        pprint(list(self.modules.values()))
+        # self.display_map()
+        # pprint(list(self.modules.values()))
+        print('-'*80)
+        print("Seed:", self.seed)
+        print(f"{len(self.modules)} modules, {self.socket_types_count + 1} socket types")
         print(f"{self.overrides_count} overrides")
+        self.get_impossible_positions_count()
         print(f"{(self.impossible_positions_count/(X_GRID_SIZE * Y_GRID_SIZE * Z_GRID_SIZE) * 100):.2f}% ({self.impossible_positions_count}/{X_GRID_SIZE * Y_GRID_SIZE * Z_GRID_SIZE}) impossible positions")
         # Write cell modifications history to a text file
         with open(CELLS_MODIFICATIONS_HISTORY_PATH, 'w') as f:
@@ -134,7 +136,7 @@ class App(object):
     def get_opposite_direction(self, dir): #perhaps here
         return (dir + 3) % 6
 
-    def choose_module_from_possibilities(self, cell, possible_modules, type="lowest"):
+    def choose_module_from_possibilities(self, cell, possible_modules, type="override"):
         if type == "lowest":
             res = []
             lowest = X_GRID_SIZE * Y_GRID_SIZE * Z_GRID_SIZE
@@ -174,7 +176,7 @@ class App(object):
             # Assign cell
             self.cells_modifications_history[cell.__repr__()].append(f"Assigned {module} from {self.map[cell.x][cell.y][cell.z]} possible modules")
             self.map[cell.x][cell.y][cell.z] = {module}
-            # duplicate_and_place_object(module.name, cell)
+            duplicate_and_place_object(module.name, cell, "chosen")
             # Now propagate to neighbors
             self.update_possibilities(cell, 20)
 
@@ -232,6 +234,8 @@ class App(object):
         if set(self.map[neighbor.x][neighbor.y][neighbor.z]) != tmp:
             self.cells_modifications_history[neighbor.__repr__()].append(f"Updated to {tmp} from {self.map[neighbor.x][neighbor.y][neighbor.z]}, because of {cell} with modules {cell_states}")
             self.map[neighbor.x][neighbor.y][neighbor.z] = tmp
+            if len(tmp) == 1:
+                duplicate_and_place_object(tmp.pop().name, neighbor, "collapsed")
 
             out.add(neighbor)
         return out
@@ -272,11 +276,18 @@ class App(object):
                     states = self.map[x][y][z]
                     states_count = len(states)
                     if states_count == 1:
-                        duplicate_and_place_object(states.pop().name, pos)
+                        duplicate_and_place_object(states.pop().name, pos, "collapsed")
                     elif states_count == 0:
                         self.impossible_positions_count += 1
                     elif states_count > 1:
                         print(f"ignored: {pos} due to cell not collapsed (states: {states})")
+
+    def get_impossible_positions_count(self):
+        for x in range(X_GRID_SIZE):
+            for y in range(Y_GRID_SIZE):
+                for z in range(Z_GRID_SIZE):
+                    if len(self.map[x][y][z]) == 0:
+                        self.impossible_positions_count += 1
 
 ## Non part of the class
 def clean_blender_scene():
@@ -315,17 +326,41 @@ def create_blender_collection(collection_name):
     bpy.context.scene.collection.children.link(collection)
 
 
-def duplicate_and_place_object(object_name, position):
+def duplicate_and_place_object(object_name, position, material_name, unlink=False):
     """ This function duplicates an object (but the underlying is kept the same)
     so the two objects are linked, then positions the newly created object """
     if not object_name:
         return
-    # the new object is created with the old object's data, which makes it "linked"
-    new_obj = bpy.data.objects.new(f"{object_name}_{position}", bpy.data.objects[object_name].data)
+
+    if unlink:
+        if bpy.data.objects[object_name].data is not None:
+            new_obj = bpy.data.objects.new(
+                f"{object_name}_{position}",
+                bpy.data.objects[object_name].data.copy()
+            )
+        else:  # Needed for empty objects
+            new_obj = bpy.data.objects.new(
+                f"{object_name}_{position}",
+                bpy.data.objects[object_name].data
+            )
+    else:  # the new object is created with the old object's data, which makes it "linked"
+        new_obj = bpy.data.objects.new(f"{object_name}_{position}", bpy.data.objects[object_name].data)
+
     # now it's just an object ref and you can move it to an absolute position
     new_obj.location = (position.x * 2, position.y * 2, position.z * 2)
     # when you create a new object manually this way it's not part of any collection, add it to the active collection so you can actually see it in the viewport
     bpy.data.collections['Output'].objects.link(new_obj)
+
+    # Non empty objects
+    if new_obj.data is not None:
+        # Set material
+        if material_name == "chosen":
+            color = (1.0, 1.0, 1.0, 1.0)
+        elif material_name == "collapsed":
+            color = (1, 0.2, 0.2, 1.0)
+        else:
+            color = (0.2, 0.2, 0.2, 1.0)
+        add_material(new_obj, material_name, color)
 
 
 def blender_rotate(ob, rotation):
@@ -335,6 +370,17 @@ def blender_rotate(ob, rotation):
     bpy.data.objects[ob.name].select_set(True)
     bpy.ops.object.transform_apply(rotation=True)
     bpy.data.objects[ob.name].select_set(False)
+
+
+def add_material(obj, name, color):
+    mat = bpy.data.materials.get(name)
+    if not mat:
+        mat = bpy.data.materials.new(name=name)
+    mat.diffuse_color = color
+    if obj.data.materials:
+        obj.data.materials[0] = mat
+    else:
+        obj.data.materials.append(mat)
 
 
 class Module(object):
