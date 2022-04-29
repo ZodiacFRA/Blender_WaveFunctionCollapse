@@ -6,8 +6,11 @@ from pprint import pprint
 
 X_GRID_SIZE = 10
 Y_GRID_SIZE = 10
-Z_GRID_SIZE = 2
+Z_GRID_SIZE = 10
 MAX_CONSECUTIVE_OVERRIDES = 20
+CHOSEN_TICK_LENGTH = 1
+COLLAPSED_TICK_LENGTH = 0
+DEFAULT_POSITION = (0, 0, 100)
 
 JSON_MODULES_DATA_PATH = "/home/zodiac/Code/Perso/Trackmania-WFC/path.json"
 CELLS_MODIFICATIONS_HISTORY_PATH = "/home/zodiac/Code/Perso/Trackmania-WFC/output.txt"
@@ -29,7 +32,9 @@ class App(object):
         # Creates a collection in which all created blocks will go
         create_blender_collection("Output")
         # Perform WFC on the map
+        self.tick = 0  # Used to record animation
         self.waveshift_function_collapse()
+        bpy.data.scenes["Scene"].frame_end = self.tick + 10
         self.log()
 
     def handle_modules_creation(self):
@@ -112,7 +117,6 @@ class App(object):
                 name = f"""{module["module_name"]}_{rotation}"""
                 self.modules[name] = Module(name, module, rotation, Vector3(x_pos, y_pos, 0))
                 y_pos += 1
-
             x_pos += 1
 
     def create_links(self):
@@ -170,15 +174,22 @@ class App(object):
             module = self.choose_module_from_possibilities(
                 cell, self.map[cell.x][cell.y][cell.z], "lowest"
             )
-            self.last_chosen_module = module
-            module.count += 1
-            self.original_modules_count[module.original_scene_object_name] += 1
-            # Assign cell
-            self.cells_modifications_history[cell.__repr__()].append(f"Assigned {module} from {self.map[cell.x][cell.y][cell.z]} possible modules")
-            self.map[cell.x][cell.y][cell.z] = {module}
-            duplicate_and_place_object(module.name, cell, "chosen")
+            self.set_cell(cell, module)
             # Now propagate to neighbors
             self.update_possibilities(cell, 20)
+
+    def set_cell(self, cell, module):
+        self.last_chosen_module = module  # For override
+        # For minimal module count choice
+        module.count += 1
+        self.original_modules_count[module.original_scene_object_name] += 1
+        # For logging
+        self.cells_modifications_history[cell.__repr__()].append(f"Assigned {module} from {self.map[cell.x][cell.y][cell.z]} possible modules")
+        # Assign cell
+        self.map[cell.x][cell.y][cell.z] = {module}
+        # Update Blender
+        duplicate_and_place_object(module.name, cell, "chosen", self.tick)
+        self.tick += CHOSEN_TICK_LENGTH
 
     def update_possibilities(self, cell, depth):
         # End of recursion conditions
@@ -232,10 +243,12 @@ class App(object):
                     tmp.add(neighbor_state)
         # Add the neighbor to the to-be-updated neighbors list if a change has been made
         if set(self.map[neighbor.x][neighbor.y][neighbor.z]) != tmp:
-            self.cells_modifications_history[neighbor.__repr__()].append(f"Updated to {tmp} from {self.map[neighbor.x][neighbor.y][neighbor.z]}, because of {cell} with modules {cell_states}")
+            # self.cells_modifications_history[neighbor.__repr__()].append(f"Updated to {tmp} from {self.map[neighbor.x][neighbor.y][neighbor.z]}, because of {cell} with modules {cell_states}")
             self.map[neighbor.x][neighbor.y][neighbor.z] = tmp
             if len(tmp) == 1:
-                duplicate_and_place_object(tmp.pop().name, neighbor, "collapsed")
+                self.cells_modifications_history[cell.__repr__()].append((self.tick, module, False))
+                duplicate_and_place_object(tmp.pop().name, neighbor, "collapsed", self.tick)
+                self.tick += COLLAPSED_TICK_LENGTH
 
             out.add(neighbor)
         return out
@@ -276,7 +289,7 @@ class App(object):
                     states = self.map[x][y][z]
                     states_count = len(states)
                     if states_count == 1:
-                        duplicate_and_place_object(states.pop().name, pos, "collapsed")
+                        duplicate_and_place_object(states.pop().name, pos, "collapsed", 0)
                     elif states_count == 0:
                         self.impossible_positions_count += 1
                     elif states_count > 1:
@@ -326,12 +339,11 @@ def create_blender_collection(collection_name):
     bpy.context.scene.collection.children.link(collection)
 
 
-def duplicate_and_place_object(object_name, position, material_name, unlink=False):
+def duplicate_and_place_object(object_name, position, material_name, tick, unlink=False):
     """ This function duplicates an object (but the underlying is kept the same)
     so the two objects are linked, then positions the newly created object """
     if not object_name:
         return
-
     if unlink:
         if bpy.data.objects[object_name].data is not None:
             new_obj = bpy.data.objects.new(
@@ -346,8 +358,11 @@ def duplicate_and_place_object(object_name, position, material_name, unlink=Fals
     else:  # the new object is created with the old object's data, which makes it "linked"
         new_obj = bpy.data.objects.new(f"{object_name}_{position}", bpy.data.objects[object_name].data)
 
-    # now it's just an object ref and you can move it to an absolute position
+        # now it's just an object ref and you can move it to an absolute position
+    new_obj.location = (DEFAULT_POSITION[0], DEFAULT_POSITION[1], DEFAULT_POSITION[2])
+    new_obj.keyframe_insert(data_path='location', frame=tick - 1)
     new_obj.location = (position.x * 2, position.y * 2, position.z * 2)
+    new_obj.keyframe_insert(data_path='location', frame=tick)
     # when you create a new object manually this way it's not part of any collection, add it to the active collection so you can actually see it in the viewport
     bpy.data.collections['Output'].objects.link(new_obj)
 
