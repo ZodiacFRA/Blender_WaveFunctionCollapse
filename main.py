@@ -11,19 +11,34 @@ Y_GRID_SIZE = 10
 Z_GRID_SIZE = 10
 MAX_CONSECUTIVE_OVERRIDES = 20
 
+JSON_MODULES_DATA_PATH = "/home/zodiac/Code/Perso/Trackmania-WFC/path.json"
+CELLS_MODIFICATIONS_HISTORY_PATH = "/home/zodiac/Code/Perso/Trackmania-WFC/output.txt"
+
 
 class App(object):
     def __init__(self):
+        clean_blender_scene()
+        # Constants
         seed = random.randint(0, 100)
         random.seed(seed)
         print("Seed:", seed)
         self.deltaTime = 0.0001
         self.endTime = time.time()
 
+        # Creates a "Generated modules" collection where all the rotations
+        # of all the modules (including 0, which does not actually rotates the object)
+        # will go during modules data loading
+        create_blender_collection("Generated modules")
+        # Load all the modules data from the json
         self.modules = {}
         self.socket_types_count = 0
-        self.load_modules_data("/home/zodiac/Code/Perso/Trackmania-WFC/path.json")
+        self.load_modules_data(JSON_MODULES_DATA_PATH)
         print(f"{len(self.modules)} modules, {self.socket_types_count + 1} socket types")
+        # Modules data recording
+        self.last_chosen_module = None
+        self.overrides_count = 0
+        self.consecutive_overrides_count = 0
+        self.impossible_positions_count = 0
 
         # Initialize map
         self.map = []
@@ -41,17 +56,18 @@ class App(object):
             # Add one single plane, x times
             self.map.append(tmpY)
 
-
-        self.last_chosen_module = None
-        self.overrides_count = 0
-        self.consecutive_overrides_count = 0
+        # Creates a collection in which all created blocks will go
+        create_blender_collection("Output")
         # Perform WFC on the map
         self.waveshift_function_collapse()
+
+        # Logging
         self.display_map()
         pprint(list(self.modules.values()))
         print(f"{self.overrides_count} overrides")
-
-        with open("/home/zodiac/Code/Perso/Trackmania-WFC/output.txt", 'w') as f:
+        print(f"{self.impossible_positions_count}/{X_GRID_SIZE * Y_GRID_SIZE * Z_GRID_SIZE} impossible positions")
+        # Write cell modifications history to a text file
+        with open(CELLS_MODIFICATIONS_HISTORY_PATH, 'w') as f:
             for cell_pos, modifications in self.cells_modifications_history.items():
                 f.write(f"{cell_pos}\n")
                 for modification in modifications:
@@ -119,7 +135,7 @@ class App(object):
 
 
 #########################################
-#dum dee dum WFC functions
+# WFC algorithm functions
     def waveshift_function_collapse(self):
         while 1:
             self.handle_loop()
@@ -136,7 +152,7 @@ class App(object):
             # Assign cell
             self.cells_modifications_history[cell.__repr__()].append(f"Assigned {module} from {self.map[cell.x][cell.y][cell.z]} possible modules")
             self.map[cell.x][cell.y][cell.z] = {module}
-            # self.duplicate_and_place_object(module.scene_object_name, cell)
+            # duplicate_and_place_object(module.scene_object_name, cell)
             # Now propagate to neighbors
             self.update_possibilities(cell, 20)
 
@@ -232,26 +248,50 @@ class App(object):
             time.sleep(self.deltaTime - delta)
         self.endTime = time.time()
 
-    def duplicate_and_place_object(self, object_name, position):
-        if not object_name:
-            return
-        # the new object is created with the old object's data, which makes it "linked"
-        my_new_obj = bpy.data.objects.new(f"{object_name}_{position}", bpy.data.objects[object_name].data)
-        # now it's just an object ref and you can move it to an absolute position
-        my_new_obj.location = (position.x * 2, position.y * 2, position.z * 2)
-        # when you create a new object manually this way it's not part of any collection, add it to the active collection so you can actually see it in the viewport
-        bpy.context.collection.objects.link(my_new_obj)
-
     def display_map(self):
         for x in range(X_GRID_SIZE):
             for y in range(Y_GRID_SIZE):
                 for z in range(Z_GRID_SIZE):
                     pos = Position(x,y,z)
                     states = self.map[x][y][z]
-                    if len(states) == 1:
-                        self.duplicate_and_place_object(states.pop().scene_object_name, pos)
-                    else:
-                        print(f"ignored: {pos} due to {len(states)}")
+                    states_count = len(states)
+                    if states_count == 1:
+                        duplicate_and_place_object(states.pop().scene_object_name, pos)
+                    elif states_count == 0:
+                        self.impossible_positions_count += 1
+                    elif states_count > 1:
+                        print(f"ignored: {pos} due to multiple states still in place: {states}")
+
+########################
+## Non part of the class
+def clean_blender_scene():
+    """
+    - The scene is supposed to have a "Modules" collection, which will be left
+    untouched
+    - All other collections will be deleted
+    """
+    for collection in bpy.data.collections:
+        if collection.name != "Modules":
+            # Delete all the objects
+            for obj in collection.objects:
+                bpy.data.objects.remove(obj, do_unlink=True)
+            bpy.data.collections.remove(collection)
+
+def create_blender_collection(collection_name):
+    collection = bpy.data.collections.new(collection_name)
+    bpy.context.scene.collection.children.link(collection)
+
+
+def duplicate_and_place_object(object_name, position):
+    if not object_name:
+        return
+    # the new object is created with the old object's data, which makes it "linked"
+    new_obj = bpy.data.objects.new(f"{object_name}_{position}", bpy.data.objects[object_name].data)
+    # now it's just an object ref and you can move it to an absolute position
+    new_obj.location = (position.x * 2, position.y * 2, position.z * 2)
+    # when you create a new object manually this way it's not part of any collection, add it to the active collection so you can actually see it in the viewport
+    bpy.data.collections['Output'].objects.link(new_obj)
+
 
 class Module(object):
     def __init__(self, name, data, rotation):
