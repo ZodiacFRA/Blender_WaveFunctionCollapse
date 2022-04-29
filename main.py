@@ -52,6 +52,9 @@ class App(object):
         self.overrides_count = 0
         self.consecutive_overrides_count = 0
         self.impossible_positions_count = 0
+        self.original_modules_count = {}
+        for module_name, module in self.modules.items():
+            self.original_modules_count[module.original_scene_object_name] = 0
 
     def handle_map_creation(self):
         # Initialize map
@@ -62,8 +65,9 @@ class App(object):
             for y in range(Y_GRID_SIZE):
                 tmpZ = []
                 for z in range(Z_GRID_SIZE):
-                    # Add one single cell, z times
+                    # To keep a log of all cells modifications
                     self.cells_modifications_history[Vector3(x, y, z).__repr__()] = []
+                    # Add one single cell, z times
                     tmpZ.append(set([m for m in self.modules.values()]))
                 # Add one single line, y times
                 tmpY.append(tmpZ)
@@ -135,10 +139,10 @@ class App(object):
             res = []
             lowest = X_GRID_SIZE * Y_GRID_SIZE * Z_GRID_SIZE
             for module in possible_modules:
-                if module.count < lowest:
-                    lowest = module.count
+                if self.original_modules_count[module.original_scene_object_name] < lowest:
+                    lowest = self.original_modules_count[module.original_scene_object_name]
                     res = [module]
-                elif module.count == lowest:
+                elif self.original_modules_count[module.original_scene_object_name] == lowest:
                     res.append(module)
         elif type == "override":
             res = list(possible_modules)
@@ -166,6 +170,7 @@ class App(object):
             )
             self.last_chosen_module = module
             module.count += 1
+            self.original_modules_count[module.original_scene_object_name] += 1
             # Assign cell
             self.cells_modifications_history[cell.__repr__()].append(f"Assigned {module} from {self.map[cell.x][cell.y][cell.z]} possible modules")
             self.map[cell.x][cell.y][cell.z] = {module}
@@ -330,30 +335,9 @@ def blender_rotate(ob, rotation):
     bpy.data.objects[ob.name].select_set(False)
 
 ROTATIONS = [
-"",
-"X",
-"Y",
-"XX",
-"XY",
-"YX",
-"YY",
-"XXX",
-"XXY",
-"XYX",
-"XYY",
-"YXX",
-"YYX",
-"YYY",
-"XXXY",
-"XXYX",
-"XXYY",
-"XYXX",
-"XYYY",
-"YXXX",
-"YYYX",
-"XXXYX",
-"XYXXX",
-"XYYYX"
+"", "X", "Y", "XX", "XY", "YX", "YY", "XXX", "XXY", "XYX", "XYY", "YXX",
+"YYX", "YYY", "XXXY", "XXYX", "XXYY", "XYXX", "XYYY", "YXXX", "YYYX",
+"XXXYX", "XYXXX", "XYYYX"
 ]
 
 class Module(object):
