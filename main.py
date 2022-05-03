@@ -7,6 +7,8 @@ from pprint import pprint
 X_GRID_SIZE = 10
 Y_GRID_SIZE = 10
 Z_GRID_SIZE = 10
+EMPTY_SLOTS_NBR = int((X_GRID_SIZE * Y_GRID_SIZE * Z_GRID_SIZE) / 1.1)
+EMPTY_SLOTS_NBR = 0
 MAX_CONSECUTIVE_OVERRIDES = 20
 CHOSEN_TICK_LENGTH = 1
 COLLAPSED_TICK_LENGTH = 0
@@ -15,9 +17,8 @@ DEFAULT_POSITION = (0, 0, 100)
 JSON_MODULES_DATA_PATH = "/home/zodiac/Code/Perso/Trackmania-WFC/path.json"
 CELLS_MODIFICATIONS_HISTORY_PATH = "/home/zodiac/Code/Perso/Trackmania-WFC/output.txt"
 ROTATIONS = [
-"", "X", "Y", "XX", "XY", "YX", "YY", "XXX", "XXY", "XYX", "XYY", "YXX",
-"YYX", "YYY", "XXXY", "XXYX", "XXYY", "XYXX", "XYYY", "YXXX", "YYYX",
-"XXXYX", "XYXXX", "XYYYX"
+"", "X", "Y", "Z", "XX", "XY", "XZ", "YX", "YY", "ZY", "ZZ", "XXX", "XXY",
+"XXZ", "XYX", "XYY", "XZZ", "YXX", "YYY", "ZZZ", "XXXY", "XXYX", "XYXX", "XYYY"
 ]
 
 class App(object):
@@ -77,6 +78,9 @@ class App(object):
             # Add one single plane, x times
             self.map.append(tmpY)
 
+        for i in range(EMPTY_SLOTS_NBR):
+            self.map[random.randint(0, X_GRID_SIZE -1)][random.randint(0, Y_GRID_SIZE -1)][random.randint(0, Z_GRID_SIZE -1)] = set([self.modules["Empty_0"]])
+
     def log(self):
         # Logging
         # self.display_map()
@@ -85,6 +89,7 @@ class App(object):
         print("Seed:", self.seed)
         print(f"{len(self.modules)} modules, {self.socket_types_count + 1} socket types")
         print(f"{self.overrides_count} overrides")
+        print(f"{EMPTY_SLOTS_NBR} filled with Empty objects")
         self.get_impossible_positions_count()
         print(f"{(self.impossible_positions_count/(X_GRID_SIZE * Y_GRID_SIZE * Z_GRID_SIZE) * 100):.2f}% ({self.impossible_positions_count}/{X_GRID_SIZE * Y_GRID_SIZE * Z_GRID_SIZE}) impossible positions")
         # Write cell modifications history to a text file
@@ -311,7 +316,7 @@ def clean_blender_scene():
     - Purge orphan data
     """
     for collection in bpy.data.collections:
-        if collection.name != "Modules":
+        if collection.name not in ["Modules", "Scene"]:
             # Delete all the objects
             for obj in collection.objects:
                 bpy.data.objects.remove(obj, do_unlink=True)
@@ -435,6 +440,7 @@ class Module(object):
         # Rotate
         x_rotation = Vector3(90, 0, 0)
         y_rotation = Vector3(0, 90, 0)
+        z_rotation = Vector3(0, 0, 90)
 
         rotations_order = ROTATIONS[rotation]
         # Apply each single transformation individually
@@ -445,6 +451,9 @@ class Module(object):
                 self.rotate_sockets(rotation_axis)
             elif rotation_axis == "Y":
                 blender_rotate(new_obj, y_rotation)
+                self.rotate_sockets(rotation_axis)
+            elif rotation_axis == "Z":
+                blender_rotate(new_obj, z_rotation)
                 self.rotate_sockets(rotation_axis)
             else:
                 print("UNKNOWN ROTATION:", rotation_axis)
@@ -469,6 +478,11 @@ class Module(object):
             self.sockets[2] = i0
             self.sockets[3] = i2
             self.sockets[5] = i3
+        elif rotation_axis == "Z":
+            self.sockets[1] = i5
+            self.sockets[2] = i1
+            self.sockets[4] = i2
+            self.sockets[5] = i4
 
     def create_link(self, nodeB, direction):
         self.links[direction].add(nodeB)
