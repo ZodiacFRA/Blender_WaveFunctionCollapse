@@ -9,31 +9,44 @@ Y_GRID_SIZE = 10
 Z_GRID_SIZE = 10
 EMPTY_SLOTS_NBR = int((X_GRID_SIZE * Y_GRID_SIZE * Z_GRID_SIZE) / 1.1)
 EMPTY_SLOTS_NBR = 0
-MAX_CONSECUTIVE_OVERRIDES = 20
+MAX_CONSECUTIVE_OVERRIDES = 5
 CHOSEN_TICK_LENGTH = 1
 COLLAPSED_TICK_LENGTH = 0
 DEFAULT_POSITION = (0, 0, 100)
+ASSIGN_MATERIAL = False
+DRAW_EMPTIES = False
+SEED = 79
+ANIMATION_LENGTH = 500
+ANIMATE = True
 
-JSON_MODULES_DATA_PATH = "/home/zodiac/Code/Perso/Trackmania-WFC/path.json"
+JSON_MODULES_DATA_PATH = "/home/zodiac/Code/Perso/Trackmania-WFC/win_tubes.json"
 CELLS_MODIFICATIONS_HISTORY_PATH = "/home/zodiac/Code/Perso/Trackmania-WFC/output.txt"
 ROTATIONS = [
 "", "X", "Y", "Z", "XX", "XY", "XZ", "YX", "YY", "ZY", "ZZ", "XXX", "XXY",
 "XXZ", "XYX", "XYY", "XZZ", "YXX", "YYY", "ZZZ", "XXXY", "XXYX", "XYXX", "XYYY"
 ]
+# ROTATIONS = [
+# "", "Z", "ZZ", "ZZZ"
+# ]
 
 class App(object):
     def __init__(self):
         clean_blender_scene()
         # Constants
-        self.seed = random.randint(0, 100)
+        if SEED == -1:
+            self.seed = random.randint(0, 100)
+        else:
+            self.seed = SEED
         random.seed(self.seed)
 
         self.handle_modules_creation()
         self.handle_map_creation()
+
         # Creates a collection in which all created blocks will go
         create_blender_collection("Output")
+        # self.display_map()
         # Perform WFC on the map
-        self.tick = 0  # Used to record animation
+        self.tick = 10  # Start offset for blender animation
         self.waveshift_function_collapse()
         bpy.data.scenes["Scene"].frame_end = self.tick + 10
         self.log()
@@ -72,14 +85,28 @@ class App(object):
                     # To keep a log of all cells modifications
                     self.cells_modifications_history[Vector3(x, y, z).__repr__()] = []
                     # Add one single cell, z times
-                    tmpZ.append(set([m for m in self.modules.values()]))
+                    if x == 0 or y == 0 or z == 0 or x == (X_GRID_SIZE -1) or y == (Y_GRID_SIZE -1) or z == (Z_GRID_SIZE -1):
+                        print("empty to", Vector3(x, y, z))
+                        tmpZ.append(set([self.modules["Empty_0"]]))
+                    else:
+                        tmpZ.append(set([m for m in self.modules.values()]))
                 # Add one single line, y times
                 tmpY.append(tmpZ)
             # Add one single plane, x times
             self.map.append(tmpY)
 
-        for i in range(EMPTY_SLOTS_NBR):
-            self.map[random.randint(0, X_GRID_SIZE -1)][random.randint(0, Y_GRID_SIZE -1)][random.randint(0, Z_GRID_SIZE -1)] = set([self.modules["Empty_0"]])
+
+
+        for x in range(X_GRID_SIZE):
+            for y in range(Y_GRID_SIZE):
+                for z in range(Z_GRID_SIZE):
+                    if x == 0 or y == 0 or z == 0 or x == (X_GRID_SIZE -1) or y == (Y_GRID_SIZE -1) or z == (Z_GRID_SIZE -1):
+                        # print("Updating", Vector3(x, y, z))
+                        self.update_possibilities(Vector3(x, y, z), 20)
+
+
+        # for i in range(EMPTY_SLOTS_NBR):
+        #     self.map[random.randint(0, X_GRID_SIZE -1)][random.randint(0, Y_GRID_SIZE -1)][random.randint(0, Z_GRID_SIZE -1)] = set([self.modules["Empty_0"]])
 
     def log(self):
         # Logging
@@ -117,7 +144,7 @@ class App(object):
             y_pos = 0
             # Create all the rotated meshes
             if module["rotations"][0] == -1:
-                module["rotations"] = [idx for idx in range(23)]
+                module["rotations"] = [idx for idx in range(len(ROTATIONS))]
             for rotation in module["rotations"]:
                 name = f"""{module["module_name"]}_{rotation}"""
                 self.modules[name] = Module(name, module, rotation, Vector3(x_pos, y_pos, 0))
@@ -165,6 +192,12 @@ class App(object):
                     if self.consecutive_overrides_count < MAX_CONSECUTIVE_OVERRIDES:
                         return self.last_chosen_module
             self.consecutive_overrides_count = 0
+        elif type == "random":
+            res = list(possible_modules)
+        elif type == "empty":
+            res = list(possible_modules)
+            if self.modules["Empty_0"] in possible_modules and random.randint(0, 2) != 0:
+                return self.modules["Empty_0"]
         return random.choice(res)
 
 
@@ -177,7 +210,7 @@ class App(object):
             if cell is None:
                 break
             module = self.choose_module_from_possibilities(
-                cell, self.map[cell.x][cell.y][cell.z], "lowest"
+                cell, self.map[cell.x][cell.y][cell.z], "override"
             )
             self.set_cell(cell, module)
             # Now propagate to neighbors
@@ -251,7 +284,7 @@ class App(object):
             # self.cells_modifications_history[neighbor.__repr__()].append(f"Updated to {tmp} from {self.map[neighbor.x][neighbor.y][neighbor.z]}, because of {cell} with modules {cell_states}")
             self.map[neighbor.x][neighbor.y][neighbor.z] = tmp
             if len(tmp) == 1:
-                self.cells_modifications_history[cell.__repr__()].append((self.tick, module, False))
+                self.cells_modifications_history[cell.__repr__()].append((self.tick, neighbor, False))
                 duplicate_and_place_object(tmp.pop().name, neighbor, "collapsed", self.tick)
                 self.tick += COLLAPSED_TICK_LENGTH
 
@@ -294,7 +327,7 @@ class App(object):
                     states = self.map[x][y][z]
                     states_count = len(states)
                     if states_count == 1:
-                        duplicate_and_place_object(states.pop().name, pos, "collapsed", 0)
+                        duplicate_and_place_object(states.pop().name, pos, "random", 0)
                     elif states_count == 0:
                         self.impossible_positions_count += 1
                     elif states_count > 1:
@@ -316,7 +349,7 @@ def clean_blender_scene():
     - Purge orphan data
     """
     for collection in bpy.data.collections:
-        if collection.name not in ["Modules", "Scene"]:
+        if collection.name not in ["Modules", "Scene", "Backups"]:
             # Delete all the objects
             for obj in collection.objects:
                 bpy.data.objects.remove(obj, do_unlink=True)
@@ -349,6 +382,8 @@ def duplicate_and_place_object(object_name, position, material_name, tick, unlin
     so the two objects are linked, then positions the newly created object """
     if not object_name:
         return
+    if not DRAW_EMPTIES and bpy.data.objects[object_name].data is None:
+        return
     if unlink:
         if bpy.data.objects[object_name].data is not None:
             new_obj = bpy.data.objects.new(
@@ -363,16 +398,23 @@ def duplicate_and_place_object(object_name, position, material_name, tick, unlin
     else:  # the new object is created with the old object's data, which makes it "linked"
         new_obj = bpy.data.objects.new(f"{object_name}_{position}", bpy.data.objects[object_name].data)
 
+    if ANIMATE:
         # now it's just an object ref and you can move it to an absolute position
-    new_obj.location = (DEFAULT_POSITION[0], DEFAULT_POSITION[1], DEFAULT_POSITION[2])
-    new_obj.keyframe_insert(data_path='location', frame=tick - 1)
-    new_obj.location = (position.x * 2, position.y * 2, position.z * 2)
-    new_obj.keyframe_insert(data_path='location', frame=tick)
+        new_obj.location = (DEFAULT_POSITION[0], DEFAULT_POSITION[1], DEFAULT_POSITION[2])
+        new_obj.keyframe_insert(data_path='location', frame=tick - 1)
+        new_obj.location = (position.x * 2, position.y * 2, position.z * 2)
+        new_obj.keyframe_insert(data_path='location', frame=tick)
+        new_obj.keyframe_insert(data_path='location', frame=tick + ANIMATION_LENGTH)
+        new_obj.location = (DEFAULT_POSITION[0], DEFAULT_POSITION[1], DEFAULT_POSITION[2])
+        new_obj.keyframe_insert(data_path='location', frame=tick + ANIMATION_LENGTH + 1)
+    else:
+        new_obj.location = (position.x * 2, position.y * 2, position.z * 2)
+
     # when you create a new object manually this way it's not part of any collection, add it to the active collection so you can actually see it in the viewport
     bpy.data.collections['Output'].objects.link(new_obj)
 
     # Non empty objects
-    if new_obj.data is not None:
+    if ASSIGN_MATERIAL and new_obj.data is not None:
         # Set material
         if material_name == "chosen":
             color = (1.0, 1.0, 1.0, 1.0)
@@ -479,10 +521,10 @@ class Module(object):
             self.sockets[3] = i2
             self.sockets[5] = i3
         elif rotation_axis == "Z":
-            self.sockets[1] = i5
-            self.sockets[2] = i1
-            self.sockets[4] = i2
-            self.sockets[5] = i4
+            self.sockets[1] = i2
+            self.sockets[2] = i4
+            self.sockets[4] = i5
+            self.sockets[5] = i1
 
     def create_link(self, nodeB, direction):
         self.links[direction].add(nodeB)

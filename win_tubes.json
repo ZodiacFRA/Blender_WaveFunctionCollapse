@@ -1,0 +1,226 @@
+[
+    {
+        "module_name": "Empty",
+        "scene_object_name": "Empty",
+        "self_attraction": false,
+        "rotations": [0],
+        "sockets": [
+            [0],
+            [0],
+            [0],
+            [0],
+            [0],
+            [0]
+          ]
+    },
+    {
+        "module_name": "end_0",
+        "scene_object_name": "end_0",
+        "self_attraction": false,
+        "rotations": [-1],
+        "sockets": [
+            [1],
+            [0],
+            [0],
+            [0],
+            [0],
+            [0]
+          ]
+    },
+    {
+        "module_name": "end_0_H",
+        "scene_object_name": "end_0_H",
+        "self_attraction": false,
+        "rotations": [-1],
+        "sockets": [
+            [2],
+            [0],
+            [0],
+            [0],
+            [0],
+            [0]
+          ]
+    },
+    {
+        "module_name": "line_0_3",
+        "scene_object_name": "line_0_3",
+        "rotations": [-1],
+        "sockets": [
+            [1],
+            [0],
+            [0],
+            [1],
+            [0],
+            [0]
+          ]
+    },
+    {
+        "module_name": "line_deco_0_3",
+        "scene_object_name": "line_deco_0_3",
+        "rotations": [-1],
+        "sockets": [
+            [1],
+            [0],
+            [0],
+            [1],
+            [0],
+            [0]
+          ]
+    },
+    {
+        "module_name": "corner_0_1",
+        "scene_object_name": "corner_0_1",
+        "rotations": [-1],
+        "sockets": [
+            [1],
+            [1],
+            [0],
+            [0],
+            [0],
+            [0]
+          ]
+    },
+    {
+        "module_name": "tricorner_0_1_2",
+        "scene_object_name": "tricorner_0_1_2",
+        "rotations": [-1],
+        "sockets": [
+            [1],
+            [1],
+            [1],
+            [0],
+            [0],
+            [0]
+          ]
+    },
+    {
+        "module_name": "hub_H",
+        "scene_object_name": "hub_H",
+        "rotations": [0],
+        "sockets": [
+            [2],
+            [2],
+            [2],
+            [2],
+            [2],
+            [2]
+          ]
+    },
+    {
+        "module_name": "line_0_3_H",
+        "scene_object_name": "line_0_3_H",
+        "rotations": [-1],
+        "sockets": [
+            [2],
+            [0],
+            [0],
+            [2],
+            [0],
+            [0]
+          ]
+    },
+    {
+        "module_name": "line_deco_0_3_H",
+        "scene_object_name": "line_deco_0_3_H",
+        "rotations": [-1],
+        "sockets": [
+            [2],
+            [0],
+            [0],
+            [2],
+            [0],
+            [0]
+          ]
+    },
+    {
+        "module_name": "corner_0_1_H",
+        "scene_object_name": "corner_0_1_H",
+        "rotations": [-1],
+        "sockets": [
+            [2],
+            [2],
+            [0],
+            [0],
+            [0],
+            [0]
+          ]
+    },
+    {
+        "module_name": "tricorner_0_1_2_H",
+        "scene_object_name": "tricorner_0_1_2_H",
+        "rotations": [-1],
+        "sockets": [
+            [2],
+            [2],
+            [2],
+            [0],
+            [0],
+            [0]
+          ]
+    },
+    {
+        "module_name": "tricorner_round_0_1_2",
+        "scene_object_name": "tricorner_round_0_1_2",
+        "rotations": [-1],
+        "sockets": [
+            [1],
+            [1],
+            [1],
+            [0],
+            [0],
+            [0]
+          ]
+    },
+    {
+        "module_name": "tricorner_round_0_1_4",
+        "scene_object_name": "tricorner_round_0_1_4",
+        "rotations": [-1],
+        "sockets": [
+            [1],
+            [1],
+            [0],
+            [0],
+            [1],
+            [0]
+          ]
+    },
+    {
+        "module_name": "quadcorner_round_0_1_3_4",
+        "scene_object_name": "quadcorner_round_0_1_3_4",
+        "rotations": [-1],
+        "sockets": [
+            [1],
+            [1],
+            [0],
+            [1],
+            [1],
+            [0]
+          ]
+    },
+    {
+        "module_name": "line_0_3_N_H",
+        "scene_object_name": "line_0_3_N_H",
+        "rotations": [-1],
+        "sockets": [
+            [1],
+            [0],
+            [0],
+            [2],
+            [0],
+            [0]
+          ]
+    },
+    {
+        "module_name": "corner_round_0_1",
+        "scene_object_name": "corner_round_0_1",
+        "rotations": [-1],
+        "sockets": [
+            [1],
+            [1],
+            [0],
+            [0],
+            [0],
+            [0]
+          ]
+    }
+]
